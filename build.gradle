@@ -1,5 +1,5 @@
 group = 'com.satori'
-version '0.9'
+version = '0.9'
 
 apply plugin: 'java'
 apply plugin: 'com.github.johnrengelman.shadow'
@@ -29,28 +29,6 @@ dependencies {
     compile 'com.google.code.gson:gson:2.8.0'
     compile 'commons-io:commons-io:2.5'
     compile 'org.slf4j:slf4j-api:1.7.24'
-}
-
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            groupId 'com.satori'
-            artifactId 'satori-bots-java-core'
-            version project.version
-            from components.java
-            //artifact sourceJar
-            //artifact javadocJar
-        }
-    }
-    repositories {
-        maven {
-            url "$buildDir/repo"
-        }
-    }
-}
-
-if (file('./deploy.gradle').exists()) {
-    apply from: "deploy.gradle"
 }
 
 afterEvaluate {
@@ -84,5 +62,94 @@ afterEvaluate {
         }
     }
     compileJava.dependsOn(generateMetaInfo)
+}
+
+apply plugin: 'java'
+apply plugin: 'maven'
+apply plugin: 'signing'
+
+group = 'com.satori'
+
+task sourceJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.allJava
+}
+
+task javadocJar(type: Jar) {
+    classifier = 'javadoc'
+    from javadoc
+}
+
+artifacts {
+    archives javadocJar, sourceJar
+}
+
+ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
+
+signing {
+    required { isReleaseVersion && gradle.taskGraph.hasTask("uploadArchives") }
+    sign configurations.archives
+}
+
+tasks.withType(Test) {
+    testLogging.showStandardStreams = true
+    testLogging.exceptionFormat = 'full'
+
+    minHeapSize = "128m"
+    maxHeapSize = "512m"
+    maxParallelForks = 1
+
+    jvmArgs '-XX:MaxPermSize=256m'
+
+    beforeTest { descriptor ->
+        logger.lifecycle("Running test: " + descriptor)
+    }
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+                authentication(userName: sonatypeUsername, password: sonatypePassword)
+            }
+
+            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+                authentication(userName: sonatypeUsername, password: sonatypePassword)
+            }
+
+            pom.project {
+                name 'Satori Bot SDK'
+                description 'The API for writing Satori bots'
+                url 'https://github.com/satori-com/satori-bots-java-core'
+
+                packaging 'jar'
+
+                scm {
+                    url 'https://github.com/satori-com/satori-bots-java-core'
+                    connection 'scm:git:git://github.com/satori-com/satori-bots-java-core.git'
+                    developerConnection 'scm:git:git@github.com:satori-com/satori-bots-java-core.git'
+                }
+
+                licenses {
+                    license {
+                        name 'The BSD 3-Clause License (with patent grant)'
+                        url 'https://raw.githubusercontent.com/satori-com/satori-bots-java-core/master/LICENSE'
+                        distribution 'repo'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id 'satorisdk'
+                        organization = 'Satori Worldwide, Inc.'
+                        organizationUrl 'https://www.satori.com'
+                        roles { role 'developer' }
+                    }
+                }
+            }
+        }
+    }
 }
 
