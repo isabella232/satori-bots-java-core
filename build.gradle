@@ -1,0 +1,88 @@
+group = 'com.satori'
+version '0.9'
+
+apply plugin: 'java'
+apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'maven-publish'
+
+buildscript {
+    repositories {
+        jcenter()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
+        classpath 'org.jfrog.buildinfo:build-info-extractor-gradle:4.1.0'
+        classpath 'com.sun.codemodel:codemodel:+'
+    }
+}
+
+import com.sun.codemodel.*
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile 'com.google.code.gson:gson:2.8.0'
+    compile 'commons-io:commons-io:2.5'
+    compile 'org.slf4j:slf4j-api:1.7.24'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId 'com.satori'
+            artifactId 'satori-bots-java-core'
+            version project.version
+            from components.java
+            //artifact sourceJar
+            //artifact javadocJar
+        }
+    }
+    repositories {
+        maven {
+            url "$buildDir/repo"
+        }
+    }
+}
+
+if (file('./deploy.gradle').exists()) {
+    apply from: "deploy.gradle"
+}
+
+afterEvaluate {
+    task generateMetaInfo {
+        group "meta"
+        description "generate meta information class"
+        outputs.upToDateWhen { false }
+        def outputDir = file("$buildDir/gen")
+        def className = "com.satori.bots.framework.ApiMetaInfo"
+
+        outputs.dir outputDir
+        project.sourceSets.main.java.srcDirs += outputDir
+
+        doFirst {
+            println "generating class '${className}'..."
+
+            def cm = new JCodeModel()
+
+            def cls = cm._class(className)
+
+            cls.field(
+                JMod.PUBLIC | JMod.STATIC | JMod.FINAL,
+                String.class, "version", new JStringLiteral(project.version)
+            )
+            cls.field(
+                JMod.PUBLIC | JMod.STATIC | JMod.FINAL,
+                String.class, "project", new JStringLiteral(project.name)
+            )
+            outputDir.mkdirs()
+            cm.build(outputDir)
+        }
+    }
+    compileJava.dependsOn(generateMetaInfo)
+}
+
