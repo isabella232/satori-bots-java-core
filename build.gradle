@@ -1,5 +1,5 @@
 group = 'com.satori'
-version = '0.9'
+version = '1.0'
 
 apply plugin: 'java'
 apply plugin: 'com.github.johnrengelman.shadow'
